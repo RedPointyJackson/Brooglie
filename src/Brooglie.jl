@@ -66,7 +66,7 @@ function solve1D(V; N=500, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
     d  = 2 + Θ.(xx)
     dd = -ones(N-1)
     M  = spdiagm((dd,d,dd),(-1,0,1))
-    λ, v = eigs(M, nev=nev, which=:SM, maxiter=maxiter)
+    λ, v = eigs(M, nev=nev, which=:SR, maxiter=maxiter)
     E = λ / (2*m*ε^2)
     return E, normalizewf.([v[:,i] for i in 1:nev], b-a)
 end
@@ -86,7 +86,7 @@ function solve2D(V; N=250, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
     dd = take(cycle([-ones(N-1); 0]), N^2-1) |> collect
     ddd = -ones(N*(N-1))
     M  = spdiagm((ddd,dd,d,dd,ddd),(-N,-1,0,1,N))
-    λ, v = eigs(M, nev=nev, which=:SM, maxiter=maxiter)
+    λ, v = eigs(M, nev=nev, which=:SR, maxiter=maxiter)
     E = λ / (2*m*ε^2)
     return E, [normalizewf(reshape(v[:,i], (N,N)), b-a) for i in 1:nev]
 end
@@ -107,7 +107,7 @@ function solve3D(V; N=100, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
     ddd = take(cycle([-ones(N*(N-1)); zeros(N)]), N^3-N) |> collect
     dddd = -ones(N^2*(N-1))
     M  = spdiagm((dddd,ddd,dd,d,dd,ddd,dddd),(-N^2,-N,-1,0,1,N,N^2))
-    λ, v = eigs(M, nev=nev, which=:SM, maxiter=maxiter)
+    λ, v = eigs(M, nev=nev, which=:SR, maxiter=maxiter)
     E = λ / (2*m*ε^2)
     return E, [reshape(v[:,i], (N,N,N)) for i in 1:nev]
 end
