@@ -94,7 +94,7 @@ end
 end
 
 @testset "Particle in a box (1D)" begin
-    N = 2500
+    N = 1000
     nev = 10
     m = 1
     a, b = -1, 1
@@ -107,10 +107,10 @@ end
     for n in 1:nev
         # Test if E ≃ n²π²ħ² / 2mL². Remember the atomic units!
         expectedE = n^2*π^2 / (2m*L^2)
-        @test isapprox(expectedE, EineV[n]; rtol=1e-3)
+        @test isapprox(expectedE, EineV[n]; rtol=1e-2)
         # Test if the wavefunction is the expected one.
         expectedwf = box.(L,m,n,linspace(a,b,N))
-        @test isapprox(abs2.(expectedwf), abs2.(v[n]), rtol=0.01)
+        @test isapprox(abs2.(expectedwf), abs2.(v[n]), rtol=0.1)
     end
 end
 
