@@ -57,7 +57,7 @@ can be accessed under Brooglie.H2eV for convenience.
 """
 function solve1D(V; N=500, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
     #    2 + V'₁   -1        0     ⋯
-    #      1     2 + V'₂     -1    ⋯
+    #     -1     2 + V'₂     -1    ⋯
     #      0       -1     2 + V'₃  ⋯
     #      ⋮      ⋮        ⋮     ⋱
     ε = (b-a)/N
