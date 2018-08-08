@@ -40,3 +40,8 @@ In the array `v` we find 5 vectors, one for each eigenstate:
 
 Read the help of `solve1D`, `solve2D` and `solve3D` to see all the
 available options.
+
+### TODO
+
+- [ ] Fix all the tests, some will need to tweak `N` or `maxiters` after the last commits.
+- [ ] Add an hydrogen atom to the tests.
