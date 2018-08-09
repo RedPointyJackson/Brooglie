@@ -11,6 +11,16 @@ using Base.Iterators
 
 const H2eV = 27.21138602 # Hartree to electronvolt
 
+function numberofarguments(f)
+    m = methods(f).ms
+    if length(m) > 1
+        error("Function $f has more than one method.")
+    elseif length(m) < 1
+        error("Function $f has no methods!.") # Happens for constants
+    end
+    return m[1].nargs - 1
+end
+
 """
     integrate(φ, L)
 

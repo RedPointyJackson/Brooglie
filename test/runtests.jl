@@ -1,6 +1,18 @@
 using Brooglie
 using Base.Test
 
+@testset "Function introspection" begin
+    for N in 1:15
+        args = Expr(:tuple, [Symbol("x_$i") for i in 1:N]...)
+        f = eval(:($args -> 42))
+        @test Brooglie.numberofarguments(f) == N
+        # Test also f manually, calling it.
+        @test f(ones(N)...) == 42 # Correct num of args
+        @test_throws MethodError f(ones(N-1)...)
+        @test_throws MethodError f(ones(N+1)...)
+    end
+end
+
 @testset "Normalization" begin
     # If we integrate sin(x) from 0 to π the area should be 2. Also,
     # ensure that normalizewf normalizes |φ|² and not φ: it should
