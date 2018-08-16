@@ -8,6 +8,7 @@ module Brooglie
 export solve1D, solve2D, solve3D
 
 using Base.Iterators
+using SparseArrays, Arpack
 
 const H2eV = 27.21138602 # Hartree to electronvolt
 
@@ -20,7 +21,7 @@ hypercube of side L.
 Is assumed that the array has the same number of elements in each
 dimension.
 """
-function integrate{T<:Number}(φ::Array{T}, L)
+function integrate(φ::Array{T}, L) where {T<:Number}
     @assert φ|>size|>unique|>length == 1 "The array is has different widths."
     D = length(size(φ))
     N = size(φ,1)
@@ -60,25 +61,25 @@ function solve1D(V; N=500, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
     #     -1     2 + V'₂     -1    ⋯
     #      0       -1     2 + V'₃  ⋯
     #      ⋮      ⋮        ⋮     ⋱
+    nev = trunc(Int, nev)
     ε = (b-a)/N
     Θ(x) = V(x) * 2*m*ε^2
-    xx = linspace(a,b,N)
-    d  = 2 + Θ.(xx)
+    xx = range(a, stop=b, length=N)
+    d  = 2 .+ Θ.(xx)
     dd = -ones(N-1)
-    M  = spdiagm((dd,d,dd),(-1,0,1))
+    M  = spdiagm(-1 => dd, 0 => d, 1 => dd)
     try
         λ, v = eigs(M, nev=nev, which=:SR, maxiter=maxiter)
+        E = λ / (2*m*ε^2)
+        return E, normalizewf.([v[:,i] for i in 1:nev], b-a)
     catch e
-        warn("Eigenvalue computation threw an error. Try the following:")
-        warn("    - Use the official binaries if there ", prefix="")
-        warn("      is an 'unexpected error'", prefix="")
-        warn("    - Increase the number of iterations or decrease N", prefix="")
-        warn("      if you get unespecified ARPACK error 1.", prefix="")
+        @warn("Eigenvalue computation threw an error. Try the following:")
+        @warn("    - Use the official binaries if there ", prefix="")
+        @warn("      is an 'unexpected error'", prefix="")
+        @warn("    - Increase the number of iterations or decrease N", prefix="")
+        @warn("      if you get unespecified ARPACK error 1.", prefix="")
         throw(e)
     end
-
-    E = λ / (2*m*ε^2)
-    return E, normalizewf.([v[:,i] for i in 1:nev], b-a)
 end
 
 """
@@ -88,14 +89,15 @@ end
 Identical to `solve1D`, but for a 2D grid `x`,`y` ∈ [`a`,`b`].
 """
 function solve2D(V; N=250, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
+    nev = trunc(Int, nev)
     ε = (b-a)/N
     Θ(x,y) = V(x,y) * 2*m*ε^2
-    ll = linspace(a,b,N)
+    ll = range(a, stop=b, length=N)
     rr = vec([(x,y) for x in ll, y in ll])
-    d  = 4 + [Θ(r...) for r in rr]
+    d  = 4 .+ [Θ(r...) for r in rr]
     dd = take(cycle([-ones(N-1); 0]), N^2-1) |> collect
     ddd = -ones(N*(N-1))
-    M  = spdiagm((ddd,dd,d,dd,ddd),(-N,-1,0,1,N))
+    M  = spdiagm(-N => ddd, -1 => dd, 0 => d, 1 => dd, -N => ddd)
     λ, v = eigs(M, nev=nev, which=:SR, maxiter=maxiter)
     E = λ / (2*m*ε^2)
     return E, [normalizewf(reshape(v[:,i], (N,N)), b-a) for i in 1:nev]
@@ -108,15 +110,16 @@ end
 Like `solve1D`, but for a 3D grid `x`,`y`,`z` ∈ [`a`,`b`].
 """
 function solve3D(V; N=100, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
+    nev = trunc(Int, nev)
     ε = (b-a)/N
     Θ(x,y,z) = V(x,y,z) * 2*m*ε^2
-    ll = linspace(a,b,N)
+    ll = range(a, stop=b, length=N)
     rr = vec([(x,y,z) for x in ll, y in ll, z in ll])
-    d  = 6 + [Θ(r...) for r in rr]
+    d  = 6 .+ [Θ(r...) for r in rr]
     dd = take(cycle([-ones(N-1); 0]), N^3-1) |> collect
     ddd = take(cycle([-ones(N*(N-1)); zeros(N)]), N^3-N) |> collect
     dddd = -ones(N^2*(N-1))
-    M  = spdiagm((dddd,ddd,dd,d,dd,ddd,dddd),(-N^2,-N,-1,0,1,N,N^2))
+    M  = spdiagm(-N^2 => dddd, -N => ddd, -1 => dd, 0 => d, 1 => dd, N => ddd, N^2 => dddd)
     λ, v = eigs(M, nev=nev, which=:SR, maxiter=maxiter)
     E = λ / (2*m*ε^2)
     return E, [reshape(v[:,i], (N,N,N)) for i in 1:nev]
