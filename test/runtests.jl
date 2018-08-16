@@ -1,5 +1,5 @@
 using Brooglie
-using Base.Test
+using Test
 
 @testset "Normalization" begin
     # If we integrate sin(x) from 0 to π the area should be 2. Also,
@@ -7,7 +7,7 @@ using Base.Test
     # divide by the square root of the area of |φ|², not by the area.
     # In this case, ∫|sin(x)|²dx ≃ π/2.
     N = 100 # Will grow quickly in 3D
-    rr = linspace(0,π,N)
+    rr = range(0, stop=π, length=N)
     f(r) = prod(sin.(r)) # f(x,y,...) = sin(x)*sin(y)*...
     # 1D:
     mesh = [[x] for x in rr]
@@ -88,7 +88,7 @@ end
         @test isapprox(expectedE, EineV[i]; rtol=1e-3)
         # Test if the wavefunction is the expected one. Check only
         # |φ|², neglecting arbitrary phase factors.
-        expectedwf = QAO.(ω,m,n,linspace(a,b,N))
+        expectedwf = QAO.(ω,m,n,range(a, stop=b, length=N))
         @test isapprox(abs2.(expectedwf), abs2.(v[i]), rtol=0.01)
     end
 end
@@ -109,7 +109,7 @@ end
         expectedE = n^2*π^2 / (2m*L^2)
         @test isapprox(expectedE, EineV[n]; rtol=1e-2)
         # Test if the wavefunction is the expected one.
-        expectedwf = box.(L,m,n,linspace(a,b,N))
+        expectedwf = box.(L,m,n,range(a, stop=b, length=N))
         @test isapprox(abs2.(expectedwf), abs2.(v[n]), rtol=0.1)
     end
 end
@@ -136,7 +136,7 @@ end
     # Test if the ground wavefunction is the expected one. Only
     # checking ground state because of degeneracy: is very dificult to
     # distinguish between |12⟩ and |21⟩, for example.
-    ll = linspace(a,b,N)
+    ll = range(a, stop=b, length=N)
     expectedwf = [QAO.(ω,m,0,x)*QAO.(ω,m,0,y) for x in ll, y in ll]
     @test isapprox(abs2.(expectedwf), abs2.(v[1]), rtol=0.01)
 end
@@ -161,7 +161,7 @@ end
         @test isapprox(expectedE, EineV[i]; rtol=1e-2)
     end
     # Test, again, if the ground wavefunction is the expected one.
-    ll = linspace(a,b,N)
+    ll = range(a, stop=b, length=N)
     expectedwf = [box.(L,m,1,x)*box.(L,m,1,y) for x in ll, y in ll]
     @test isapprox(abs2.(expectedwf), abs2.(v[1]), rtol=0.01)
 end
@@ -187,7 +187,7 @@ end
         @test isapprox(expectedE, EineV[i]; rtol=1e-1)
     end
     # Test if the ground wavefunction is the expected one.
-    ll = linspace(a,b,N)
+    ll = range(a, stop=b, length=N)
     expectedwf = [QAO.(ω,m,0,x)*QAO.(ω,m,0,y)*QAO.(ω,m,0,z) for x in ll, y in ll, z in ll]
     @test_broken isapprox(abs2.(expectedwf), abs2.(v[1]), rtol=0.1)
 end
@@ -212,7 +212,7 @@ end
         @test isapprox(expectedE, EineV[i]; rtol=1e-1)
     end
     # Test if the ground wavefunction is the expected one.
-    ll = linspace(a,b,N)
+    ll = range(a, stop=b, length=N)
     expectedwf = [box.(L,m,1,x)*box.(L,m,1,y)*box.(L,m,1,z) for x in ll, y in ll, z in ll]
     @test_broken isapprox(abs2.(expectedwf), abs2.(v[1]), rtol=0.1)
 end
