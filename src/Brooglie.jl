@@ -1,16 +1,41 @@
 """
 Solve the time independent Schödinger equation for a particle in an
-arbitrary potential. See the documentation for `Solve1D`, `Solve2D`
-and `Solve3D` and the PDF documentation in the `/doc` folder.
+arbitrary potential. See the documentation for `solve` and `buildH`,
+and the PDF documentation in the `/doc` folder.
 """
-
 module Brooglie
-export solve1D, solve2D, solve3D
 
+export buildH, solve
+
+using SparseArrays
 using Base.Iterators
+using Arpack
+
 
 const H2eV = 27.21138602 # Hartree to electronvolt
 
+"""
+    combinations(els, N)
+
+Return an array of all the `N` element combinations with repetition of `els`,
+ordered lexicographically.
+"""
+function combinations(els, N)
+    @assert N ≥ 0
+    if N == 0
+        return typeof(first(els))[]
+    elseif N == 1
+        return vec([[el] for el in els])
+    else
+        return vec([vcat(el, c) for c in combinations(els, N-1), el in els])
+    end
+end
+
+"""
+    numberofarguments(f)
+
+Number of arguments of function `f`. Fails if `f` has more than one method.
+"""
 function numberofarguments(f)
     m = methods(f).ms
     if length(m) > 1
@@ -22,7 +47,42 @@ function numberofarguments(f)
 end
 
 """
-    integrate(φ, L)
+    buildskeleton(D, N)
+
+Helper for building the Hamiltonian in `D` dimensions with `N` base
+elements. Returns the Hamiltonian but with a diagonal of zeros.
+"""
+function buildskeleton(D, N)
+
+    function ith_diag(i)
+        motif = [-ones(N^(i-1)*(N-1)); zeros(N^(i-1))]
+        return take(cycle(motif), N^D - N^(i-1)) |> collect
+    end
+
+    diags = ith_diag.(1:D)
+    S = spdiagm([N^(i-1) => diags[i] for i in 1:D]...)
+
+    return S + S'
+
+end
+
+"""
+    buildH(V; N=20, a=-1, b=1, m=1)
+
+Hamiltonian of a particle of mass `m` in a box spanning from `a` to `b` in all
+D dimensions with a basis of `N` elements (number of partitions of the space in
+each coordinate). The potential `V`(x, y, z, ...) is a function of D arguments.
+"""
+function buildH(V; N=20, a=-1, b=1, m=1)
+    D = numberofarguments(V)
+    xx = combinations(range(a, stop=b, length=N), D)
+    h = (b-a)/N
+    θ(ζ) = V(ζ...) * 2*m*h^2
+    return buildskeleton(D, N) + spdiagm(0 => map(ζ->2D+θ(ζ), xx))
+end
+
+"""
+    integrate(φ, L) = ∫φ dA = ∫∫⋯∫ φ(x,y,z,...) dx⋅dy⋅dz...
 
 Multidimensional integration of the D-dimensional array `φ` in an
 hypercube of side L.
@@ -30,16 +90,16 @@ hypercube of side L.
 Is assumed that the array has the same number of elements in each
 dimension.
 """
-function integrate{T<:Number}(φ::Array{T}, L)
-    @assert φ|>size|>unique|>length == 1 "The array is has different widths."
+function integrate(φ, L)
+    @assert length(unique(size(φ))) == 1 "The array is has different widths."
     D = length(size(φ))
     N = size(φ,1)
-    basehyperarea = (L/N)^D
-    return sum(φ) * basehyperarea
+    dA = (L/N)^D
+    return sum(φ) * dA
 end
 
 """
-    normalizewf(φ,L)
+    normalizewf(φ, L) = φ / ∫|φ|² dA
 
     Normalize the wavefunction vector `φ` in a
     hypercube of side `L` so its modulus squared has unit area.
@@ -49,87 +109,38 @@ end
 normalizewf(φ, L) = φ / √integrate(φ.^2, L)
 
 """
-    solve1D(V; N=500, a=-1, b=1,
-               m=1, nev=N÷20, maxiter=1000)
+    solve(V; N=500, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
 
-Solve the 1D potential `V`(x) in a grid x ∈ [`a`,`b`], discretized in
-`N` steps.
+Solve the potential `V`(x,y,z,...) in a grid xᵢ ∈ [`a`,`b`], discretized in `N`
+steps.
 
-The particle is asumed to have mass `m` (by default the electron
-mass).
+The particle is asumed to have mass `m` (by default 1, a electron mass).
 
 The function will return the `nev` first energy levels (in Hartree[^1])
 and its normalized eigenfunctions.
 
-[^1] A Hartree is equivalent to 27.21 eV. The global variable `H2eV`
-can be accessed under Brooglie.H2eV for convenience.
+[^1] A Hartree is equivalent to 27.21… eV. The global variable `H2eV`,
+equal to that value, can be accessed under Brooglie.H2eV for
+convenience.
 
 """
-function solve1D(V; N=500, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
-    #    2 + V'₁   -1        0     ⋯
-    #     -1     2 + V'₂     -1    ⋯
-    #      0       -1     2 + V'₃  ⋯
-    #      ⋮      ⋮        ⋮     ⋱
-    ε = (b-a)/N
-    Θ(x) = V(x) * 2*m*ε^2
-    xx = linspace(a,b,N)
-    d  = 2 + Θ.(xx)
-    dd = -ones(N-1)
-    M  = spdiagm((dd,d,dd),(-1,0,1))
+function solve(V; N=500, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
+    D = numberofarguments(V)
+    H = buildH(V; N=N, a=a, b=b, m=m)
+    λλ = zeros(nev)
+    v = zeros(N^D, nev)
     try
-        λ, v = eigs(M, nev=nev, which=:SR, maxiter=maxiter)
-    catch e
-        warn("Eigenvalue computation threw an error. Try the following:")
-        warn("    - Use the official binaries if there ", prefix="")
-        warn("      is an 'unexpected error'", prefix="")
-        warn("    - Increase the number of iterations or decrease N", prefix="")
-        warn("      if you get unespecified ARPACK error 1.", prefix="")
-        throw(e)
+        λλ, v = eigs(H, nev=nev, which=:SR, maxiter=maxiter)
+    catch ex
+        if typeof(ex) == ARPACKException && ex.info == 1
+            error("Arpack runned out of iters (maxiter = $maxiter)")
+        end
     end
-
-    E = λ / (2*m*ε^2)
-    return E, normalizewf.([v[:,i] for i in 1:nev], b-a)
-end
-
-"""
-    solve2D(V; N=250, a=-1, b=1,
-               m=1, nev=N÷20, maxiter=1000)
-
-Identical to `solve1D`, but for a 2D grid `x`,`y` ∈ [`a`,`b`].
-"""
-function solve2D(V; N=250, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
-    ε = (b-a)/N
-    Θ(x,y) = V(x,y) * 2*m*ε^2
-    ll = linspace(a,b,N)
-    rr = vec([(x,y) for x in ll, y in ll])
-    d  = 4 + [Θ(r...) for r in rr]
-    dd = take(cycle([-ones(N-1); 0]), N^2-1) |> collect
-    ddd = -ones(N*(N-1))
-    M  = spdiagm((ddd,dd,d,dd,ddd),(-N,-1,0,1,N))
-    λ, v = eigs(M, nev=nev, which=:SR, maxiter=maxiter)
-    E = λ / (2*m*ε^2)
-    return E, [normalizewf(reshape(v[:,i], (N,N)), b-a) for i in 1:nev]
-end
-
-"""
-    solve3D(V; N=100, a=-1, b=1,
-               m=1, nev=N÷20, maxiter=1000)
-
-Like `solve1D`, but for a 3D grid `x`,`y`,`z` ∈ [`a`,`b`].
-"""
-function solve3D(V; N=100, a=-1, b=1, m=1, nev=N÷20, maxiter=1000)
-    ε = (b-a)/N
-    Θ(x,y,z) = V(x,y,z) * 2*m*ε^2
-    ll = linspace(a,b,N)
-    rr = vec([(x,y,z) for x in ll, y in ll, z in ll])
-    d  = 6 + [Θ(r...) for r in rr]
-    dd = take(cycle([-ones(N-1); 0]), N^3-1) |> collect
-    ddd = take(cycle([-ones(N*(N-1)); zeros(N)]), N^3-N) |> collect
-    dddd = -ones(N^2*(N-1))
-    M  = spdiagm((dddd,ddd,dd,d,dd,ddd,dddd),(-N^2,-N,-1,0,1,N,N^2))
-    λ, v = eigs(M, nev=nev, which=:SR, maxiter=maxiter)
-    E = λ / (2*m*ε^2)
-    return E, [reshape(v[:,i], (N,N,N)) for i in 1:nev]
+    h = (b-a)/N
+    E = λλ / (2*m*h^2)
+    vv = [reshape(v[:,i], Tuple(repeat([N], D))) for i in 1:nev]
+    φφ = normalizewf.([vv[i] for i in 1:nev], b-a)
+    return E, φφ
 end
 
 end#module
