@@ -13,7 +13,7 @@ m = 1
 a,b = -10,10 # Limits of the box
 
 # Use atomic units!
-V(x) = 0.5*m*ω*x^2
+V(x) = 0.5*m*ω^2*x^2
 
 # Find the first 5 eigenstates
 E, vv = solve(V, a=a, b=b, m=m, nev=5)
