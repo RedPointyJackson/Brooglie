@@ -7,6 +7,7 @@ module Brooglie
 
 export buildH, solve
 
+using LinearAlgebra
 using SparseArrays
 using Base.Iterators
 using Arpack
